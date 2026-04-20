@@ -98,8 +98,55 @@ async def test_trigger_scan_with_ranges(mock_backend):
 
 @pytest.mark.anyio
 async def test_approve_device(mock_backend):
+    mock_backend.get = AsyncMock(return_value=[
+        {
+            "id": "5",
+            "ip": "192.168.1.50",
+            "hostname": "server.local",
+            "mac": "aa:bb:cc:dd:ee:ff",
+            "os": "Linux",
+            "suggested_type": "server",
+            "services": [{"port": 22, "service_name": "SSH"}],
+        }
+    ])
     await _dispatch("approve_device", {"id": "5", "type": "server", "label": "MyServer"})
-    mock_backend.post.assert_called_once_with("/api/v1/scan/pending/5/approve", {"type": "server", "label": "MyServer"})
+    mock_backend.get.assert_called_once_with("/api/v1/scan/pending")
+    mock_backend.post.assert_called_once_with(
+        "/api/v1/scan/pending/5/approve",
+        {
+            "type": "server",
+            "label": "MyServer",
+            "ip": "192.168.1.50",
+            "hostname": "server.local",
+            "mac": "aa:bb:cc:dd:ee:ff",
+            "os": "Linux",
+            "status": "unknown",
+            "services": [{"port": 22, "service_name": "SSH"}],
+        },
+    )
+
+
+@pytest.mark.anyio
+async def test_approve_device_uses_pending_defaults(mock_backend):
+    mock_backend.get = AsyncMock(return_value=[
+        {
+            "id": "5",
+            "ip": "192.168.1.50",
+            "hostname": None,
+            "suggested_type": "lxc",
+            "services": [],
+        }
+    ])
+    await _dispatch("approve_device", {"id": "5"})
+    mock_backend.post.assert_called_once_with(
+        "/api/v1/scan/pending/5/approve",
+        {
+            "type": "lxc",
+            "label": "192.168.1.50",
+            "ip": "192.168.1.50",
+            "status": "unknown",
+        },
+    )
 
 
 @pytest.mark.anyio

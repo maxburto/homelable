@@ -4,6 +4,28 @@ from mcp.types import Tool, TextContent
 from .backend_client import backend
 
 
+NODE_TYPES = ["isp", "router", "switch", "server", "proxmox", "vm", "lxc", "nas", "iot", "ap", "generic"]
+NODE_METADATA_SCHEMA = {
+    "type": {"type": "string", "enum": NODE_TYPES},
+    "label": {"type": "string"},
+    "ip": {"type": "string"},
+    "hostname": {"type": "string"},
+    "mac": {"type": "string"},
+    "os": {"type": "string"},
+    "status": {"type": "string", "enum": ["online", "offline", "unknown", "pending"], "default": "unknown"},
+    "check_method": {"type": "string"},
+    "check_target": {"type": "string"},
+    "services": {"type": "array", "items": {"type": "object"}},
+    "notes": {"type": "string"},
+    "parent_id": {"type": ["string", "null"], "description": "ID of the parent node (e.g. Proxmox host for a VM/LXC). Pass null to detach."},
+    "container_mode": {"type": "boolean"},
+    "reference_document": {"type": "string", "description": "Repo-relative path to the node's human-readable reference document."},
+    "access_profiles": {"type": "array", "items": {"type": "object"}, "description": "Non-secret access metadata for this node."},
+    "credential_refs": {"type": "array", "items": {"type": "object"}, "description": "Non-secret references to Credential Ops credential IDs and approved flows."},
+    "properties": {"type": "array", "items": {"type": "object"}},
+}
+
+
 def register_tools(server: Server):
 
     @server.list_tools()
@@ -12,31 +34,12 @@ def register_tools(server: Server):
             Tool(name="create_node", description="Add a new node to the homelab canvas", inputSchema={
                 "type": "object",
                 "required": ["type", "label"],
-                "properties": {
-                    "type":     {"type": "string", "enum": ["isp","router","switch","server","proxmox","vm","lxc","nas","iot","ap","generic"]},
-                    "label":    {"type": "string"},
-                    "ip":       {"type": "string"},
-                    "hostname": {"type": "string"},
-                    "status":   {"type": "string", "enum": ["online","offline","unknown","pending"], "default": "unknown"},
-                    "reference_document": {"type": "string", "description": "Repo-relative path to the node's human-readable reference document."},
-                    "access_profiles": {"type": "array", "items": {"type": "object"}, "description": "Non-secret access metadata for this node."},
-                    "credential_refs": {"type": "array", "items": {"type": "object"}, "description": "Non-secret references to Credential Ops credential IDs and approved flows."},
-                },
+                "properties": NODE_METADATA_SCHEMA,
             }),
             Tool(name="update_node", description="Update an existing node", inputSchema={
                 "type": "object",
                 "required": ["id"],
-                "properties": {
-                    "id":        {"type": "string"},
-                    "label":     {"type": "string"},
-                    "ip":        {"type": "string"},
-                    "hostname":  {"type": "string"},
-                    "status":    {"type": "string"},
-                    "parent_id": {"type": "string", "description": "ID of the parent node (e.g. Proxmox host for a VM/LXC). Pass null to detach."},
-                    "reference_document": {"type": "string", "description": "Repo-relative path to the node's human-readable reference document."},
-                    "access_profiles": {"type": "array", "items": {"type": "object"}, "description": "Non-secret access metadata for this node."},
-                    "credential_refs": {"type": "array", "items": {"type": "object"}, "description": "Non-secret references to Credential Ops credential IDs and approved flows."},
-                },
+                "properties": {"id": {"type": "string"}, **NODE_METADATA_SCHEMA},
             }),
             Tool(name="delete_node", description="Delete a node from the canvas", inputSchema={
                 "type": "object",
@@ -69,8 +72,11 @@ def register_tools(server: Server):
                 "required": ["id"],
                 "properties": {
                     "id":    {"type": "string"},
-                    "type":  {"type": "string", "enum": ["isp","router","switch","server","proxmox","vm","lxc","nas","iot","ap","generic"], "default": "generic"},
+                    "type":  {"type": "string", "enum": NODE_TYPES, "default": "generic"},
                     "label": {"type": "string"},
+                    "reference_document": NODE_METADATA_SCHEMA["reference_document"],
+                    "access_profiles": NODE_METADATA_SCHEMA["access_profiles"],
+                    "credential_refs": NODE_METADATA_SCHEMA["credential_refs"],
                 },
             }),
             Tool(name="hide_device", description="Hide a pending discovered device", inputSchema={
@@ -156,8 +162,9 @@ async def _dispatch(name: str, args: dict) -> dict:
         return await backend.post("/api/v1/scan/trigger", body)
 
     if name == "approve_device":
-        device_id = args.pop("id")
-        return await backend.post(f"/api/v1/scan/pending/{device_id}/approve", args)
+        payload = await _approve_device_payload(args)
+        device_id = payload.pop("id")
+        return await backend.post(f"/api/v1/scan/pending/{device_id}/approve", payload)
 
     if name == "hide_device":
         return await backend.post(f"/api/v1/scan/pending/{args['id']}/hide", {})
@@ -173,3 +180,27 @@ async def _dispatch(name: str, args: dict) -> dict:
         return await backend.get("/api/v1/scan/pending")
 
     raise ValueError(f"Unknown tool: {name}")
+
+
+async def _approve_device_payload(args: dict) -> dict:
+    device_id = args["id"]
+    pending = await backend.get("/api/v1/scan/pending")
+    device = next(
+        (item for item in pending if isinstance(item, dict) and item.get("id") == device_id),
+        {},
+    )
+    payload = {
+        "id": device_id,
+        "type": args.get("type") or device.get("suggested_type") or "generic",
+        "label": args.get("label") or device.get("hostname") or device.get("ip") or "Discovered device",
+        "ip": device.get("ip"),
+        "hostname": device.get("hostname"),
+        "mac": device.get("mac"),
+        "os": device.get("os"),
+        "status": args.get("status") or "unknown",
+        "services": device.get("services") or [],
+    }
+    for key in ("reference_document", "access_profiles", "credential_refs"):
+        if key in args:
+            payload[key] = args[key]
+    return {key: value for key, value in payload.items() if value not in (None, "", [])}
