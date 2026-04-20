@@ -18,6 +18,9 @@ def register_tools(server: Server):
                     "ip":       {"type": "string"},
                     "hostname": {"type": "string"},
                     "status":   {"type": "string", "enum": ["online","offline","unknown","pending"], "default": "unknown"},
+                    "reference_document": {"type": "string", "description": "Repo-relative path to the node's human-readable reference document."},
+                    "access_profiles": {"type": "array", "items": {"type": "object"}, "description": "Non-secret access metadata for this node."},
+                    "credential_refs": {"type": "array", "items": {"type": "object"}, "description": "Non-secret references to Credential Ops credential IDs and approved flows."},
                 },
             }),
             Tool(name="update_node", description="Update an existing node", inputSchema={
@@ -30,6 +33,9 @@ def register_tools(server: Server):
                     "hostname":  {"type": "string"},
                     "status":    {"type": "string"},
                     "parent_id": {"type": "string", "description": "ID of the parent node (e.g. Proxmox host for a VM/LXC). Pass null to detach."},
+                    "reference_document": {"type": "string", "description": "Repo-relative path to the node's human-readable reference document."},
+                    "access_profiles": {"type": "array", "items": {"type": "object"}, "description": "Non-secret access metadata for this node."},
+                    "credential_refs": {"type": "array", "items": {"type": "object"}, "description": "Non-secret references to Credential Ops credential IDs and approved flows."},
                 },
             }),
             Tool(name="delete_node", description="Delete a node from the canvas", inputSchema={
@@ -94,14 +100,29 @@ def register_tools(server: Server):
 
 def _slim_canvas(raw: dict) -> dict:
     """Strip React Flow layout/style fields — keep only semantic data for AI use."""
-    NODE_KEEP = {"id", "type", "label", "ip", "hostname", "status", "services", "description", "parentId"}
+    NODE_KEEP = {
+        "id",
+        "type",
+        "label",
+        "ip",
+        "hostname",
+        "status",
+        "services",
+        "description",
+        "parent_id",
+        "parentId",
+        "reference_document",
+        "access_profiles",
+        "credential_refs",
+    }
     EDGE_KEEP = {"id", "source", "target", "type", "label"}
 
     def slim_node(n: dict) -> dict:
-        data = n.get("data", {})
+        raw_data = n.get("data")
+        data = raw_data if isinstance(raw_data, dict) else n
         out = {k: v for k, v in data.items() if k in NODE_KEEP and v not in (None, "", [])}
-        out["id"] = n.get("id")
-        out["node_type"] = n.get("type")
+        out["id"] = n.get("id") or data.get("id")
+        out["node_type"] = n.get("type") or data.get("type")
         return out
 
     def slim_edge(e: dict) -> dict:

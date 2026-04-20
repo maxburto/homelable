@@ -84,6 +84,16 @@ async def init_db() -> None:
             await conn.exec_driver_sql("ALTER TABLE edges ADD COLUMN waypoints JSON")
         with suppress(OperationalError):
             await conn.exec_driver_sql("ALTER TABLE nodes ADD COLUMN properties JSON")
+        with suppress(OperationalError):
+            await conn.exec_driver_sql("ALTER TABLE nodes ADD COLUMN reference_document TEXT")
+        with suppress(OperationalError):
+            await conn.exec_driver_sql("ALTER TABLE nodes ADD COLUMN access_profiles JSON")
+        with suppress(OperationalError):
+            await conn.exec_driver_sql("ALTER TABLE nodes ADD COLUMN credential_refs JSON")
+        with suppress(OperationalError):
+            await conn.exec_driver_sql("UPDATE nodes SET access_profiles = '[]' WHERE access_profiles IS NULL")
+        with suppress(OperationalError):
+            await conn.exec_driver_sql("UPDATE nodes SET credential_refs = '[]' WHERE credential_refs IS NULL")
         # Migrate hardware columns → properties JSON (idempotent: only runs on nodes where properties IS NULL)
         with suppress(OperationalError):
             rows = await conn.exec_driver_sql(

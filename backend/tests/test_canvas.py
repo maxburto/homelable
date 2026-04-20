@@ -404,6 +404,9 @@ async def test_save_canvas_persists_all_node_fields(client: AsyncClient, headers
         check_target="http://192.168.1.10",
         services=[{"name": "nginx", "port": 80}],
         notes="Primary web server",
+        reference_document="docs/reference/infrastructure/hosts/main-server.md",
+        access_profiles=[{"host_id": "main-server", "transport": "ssh", "endpoint": "main-server.lan"}],
+        credential_refs=[{"credential_id": "infra-main-server-root-password", "preferred_flow": "credential_ops_use_on_behalf"}],
         pos_x=150.0,
         pos_y=250.0,
         bottom_handles=2,
@@ -421,6 +424,9 @@ async def test_save_canvas_persists_all_node_fields(client: AsyncClient, headers
     assert node["check_target"] == "http://192.168.1.10"
     assert node["services"] == [{"name": "nginx", "port": 80}]
     assert node["notes"] == "Primary web server"
+    assert node["reference_document"] == "docs/reference/infrastructure/hosts/main-server.md"
+    assert node["access_profiles"] == [{"host_id": "main-server", "transport": "ssh", "endpoint": "main-server.lan"}]
+    assert node["credential_refs"] == [{"credential_id": "infra-main-server-root-password", "preferred_flow": "credential_ops_use_on_behalf"}]
     assert node["pos_x"] == 150.0
     assert node["pos_y"] == 250.0
     assert node["bottom_handles"] == 2

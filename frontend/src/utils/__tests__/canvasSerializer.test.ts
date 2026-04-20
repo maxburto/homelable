@@ -77,6 +77,9 @@ describe('serializeNode — regular node', () => {
         hostname: 'gw.local', ip: '192.168.1.1', mac: 'aa:bb:cc:dd:ee:ff',
         os: 'OpenWRT', check_method: 'ping', check_target: '192.168.1.1',
         notes: 'main router',
+        reference_document: 'docs/reference/infrastructure/network/router.md',
+        access_profiles: [{ host_id: 'router', transport: 'https' }],
+        credential_refs: [{ credential_id: 'app-router-admin-password' }],
       },
     })
     const result = serializeNode(node)
@@ -87,6 +90,9 @@ describe('serializeNode — regular node', () => {
     expect(result.check_method).toBe('ping')
     expect(result.check_target).toBe('192.168.1.1')
     expect(result.notes).toBe('main router')
+    expect(result.reference_document).toBe('docs/reference/infrastructure/network/router.md')
+    expect(result.access_profiles).toEqual([{ host_id: 'router', transport: 'https' }])
+    expect(result.credential_refs).toEqual([{ credential_id: 'app-router-admin-password' }])
   })
 
   it('serializes width and height when node has been resized', () => {
@@ -139,6 +145,9 @@ describe('serializeNode — regular node', () => {
     expect(result.check_method).toBeNull()
     expect(result.check_target).toBeNull()
     expect(result.notes).toBeNull()
+    expect(result.reference_document).toBeNull()
+    expect(result.access_profiles).toEqual([])
+    expect(result.credential_refs).toEqual([])
     expect(result.parent_id).toBeNull()
     expect(result.cpu_count).toBeNull()
     expect(result.cpu_model).toBeNull()
@@ -191,6 +200,25 @@ describe('serializeNode — groupRect', () => {
     expect(cc.z_order).toBe(2)
     expect(cc.width).toBe(300)
     expect(cc.height).toBe(200)
+  })
+
+  it('preserves inventory reference fields for group rectangles', () => {
+    const node = makeRfNode({
+      type: 'groupRect',
+      data: {
+        label: 'Z',
+        type: 'groupRect',
+        status: 'unknown',
+        services: [],
+        reference_document: 'docs/reference/infrastructure/groups/zone-a.md',
+        access_profiles: [{ host_id: 'zone-a' }],
+        credential_refs: [{ credential_id: 'group-zone-a-reference' }],
+      },
+    })
+    const result = serializeNode(node)
+    expect(result.reference_document).toBe('docs/reference/infrastructure/groups/zone-a.md')
+    expect(result.access_profiles).toEqual([{ host_id: 'zone-a' }])
+    expect(result.credential_refs).toEqual([{ credential_id: 'group-zone-a-reference' }])
   })
 })
 

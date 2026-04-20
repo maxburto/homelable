@@ -20,6 +20,9 @@ class NodeSave(BaseModel):
     check_target: str | None = None
     services: list[Any] = []
     notes: str | None = None
+    reference_document: str | None = None
+    access_profiles: list[dict[str, Any]] = []
+    credential_refs: list[dict[str, Any]] = []
     parent_id: str | None = None
     container_mode: bool = False
     custom_colors: dict[str, Any] | None = None

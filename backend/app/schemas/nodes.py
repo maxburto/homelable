@@ -16,6 +16,9 @@ class NodeBase(BaseModel):
     check_target: str | None = None
     services: list[Any] = []
     notes: str | None = None
+    reference_document: str | None = None
+    access_profiles: list[dict[str, Any]] = []
+    credential_refs: list[dict[str, Any]] = []
     pos_x: float = 0
     pos_y: float = 0
     parent_id: str | None = None
@@ -49,6 +52,9 @@ class NodeUpdate(BaseModel):
     check_target: str | None = None
     services: list[Any] | None = None
     notes: str | None = None
+    reference_document: str | None = None
+    access_profiles: list[dict[str, Any]] | None = None
+    credential_refs: list[dict[str, Any]] | None = None
     pos_x: float | None = None
     pos_y: float | None = None
     parent_id: str | None = None

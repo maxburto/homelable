@@ -19,6 +19,9 @@ export interface ApiNode extends Record<string, unknown> {
   check_method?: string | null
   check_target?: string | null
   notes?: string | null
+  reference_document?: string | null
+  access_profiles?: unknown[] | null
+  credential_refs?: unknown[] | null
   parent_id?: string | null
   container_mode?: boolean
   custom_colors?: Record<string, unknown> | null
@@ -67,6 +70,9 @@ export function serializeNode(n: Node<NodeData>): Record<string, unknown> {
       check_target: null,
       services: [],
       notes: null,
+      reference_document: n.data.reference_document ?? null,
+      access_profiles: n.data.access_profiles ?? [],
+      credential_refs: n.data.credential_refs ?? [],
       parent_id: n.data.parent_id ?? null,
       container_mode: false,
       custom_icon: null,
@@ -92,6 +98,9 @@ export function serializeNode(n: Node<NodeData>): Record<string, unknown> {
     check_target: n.data.check_target ?? null,
     services: n.data.services ?? [],
     notes: n.data.notes ?? null,
+    reference_document: n.data.reference_document ?? null,
+    access_profiles: n.data.access_profiles ?? [],
+    credential_refs: n.data.credential_refs ?? [],
     parent_id: n.data.parent_id ?? null,
     container_mode: n.data.container_mode ?? false,
     custom_colors: n.data.custom_colors ?? null,

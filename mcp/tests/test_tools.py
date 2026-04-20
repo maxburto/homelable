@@ -21,9 +21,43 @@ async def test_create_node(mock_backend):
 
 
 @pytest.mark.anyio
+async def test_create_node_with_inventory_reference_fields(mock_backend):
+    payload = {
+        "type": "lxc",
+        "label": "Homelable",
+        "reference_document": "docs/reference/infrastructure/lxcs/lxc-151-homelable.md",
+        "access_profiles": [{"host_id": "lxc-151-homelable", "transport": "api"}],
+        "credential_refs": [{"credential_id": "api-homelable-mcp-api-key"}],
+    }
+    await _dispatch("create_node", payload.copy())
+    mock_backend.post.assert_called_once_with("/api/v1/nodes", payload)
+
+
+@pytest.mark.anyio
 async def test_update_node(mock_backend):
     await _dispatch("update_node", {"id": "42", "label": "New name"})
     mock_backend.patch.assert_called_once_with("/api/v1/nodes/42", {"label": "New name"})
+
+
+@pytest.mark.anyio
+async def test_update_node_with_inventory_reference_fields(mock_backend):
+    await _dispatch(
+        "update_node",
+        {
+            "id": "42",
+            "reference_document": "docs/reference/infrastructure/lxcs/lxc-151-homelable.md",
+            "access_profiles": [{"host_id": "lxc-151-homelable", "transport": "api"}],
+            "credential_refs": [{"credential_id": "api-homelable-mcp-api-key"}],
+        },
+    )
+    mock_backend.patch.assert_called_once_with(
+        "/api/v1/nodes/42",
+        {
+            "reference_document": "docs/reference/infrastructure/lxcs/lxc-151-homelable.md",
+            "access_profiles": [{"host_id": "lxc-151-homelable", "transport": "api"}],
+            "credential_refs": [{"credential_id": "api-homelable-mcp-api-key"}],
+        },
+    )
 
 
 @pytest.mark.anyio
@@ -84,7 +118,14 @@ async def test_get_canvas(mock_backend):
                 "position": {"x": 100, "y": 200},
                 "width": 160,
                 "height": 80,
-                "data": {"label": "Freebox", "ip": "192.168.1.1", "status": "online"},
+                "data": {
+                    "label": "Freebox",
+                    "ip": "192.168.1.1",
+                    "status": "online",
+                    "reference_document": "docs/reference/infrastructure/network/router.md",
+                    "access_profiles": [{"host_id": "router", "transport": "https"}],
+                    "credential_refs": [{"credential_id": "app-router-admin-password"}],
+                },
             }
         ],
         "edges": [
@@ -95,9 +136,56 @@ async def test_get_canvas(mock_backend):
     result = await _dispatch("get_canvas", {})
     mock_backend.get.assert_called_once_with("/api/v1/canvas")
     # Layout/style fields stripped, only semantic data kept
-    assert result["nodes"] == [{"id": "n1", "node_type": "router", "label": "Freebox", "ip": "192.168.1.1", "status": "online"}]
+    assert result["nodes"] == [
+        {
+            "id": "n1",
+            "node_type": "router",
+            "label": "Freebox",
+            "ip": "192.168.1.1",
+            "status": "online",
+            "reference_document": "docs/reference/infrastructure/network/router.md",
+            "access_profiles": [{"host_id": "router", "transport": "https"}],
+            "credential_refs": [{"credential_id": "app-router-admin-password"}],
+        }
+    ]
     assert result["edges"] == [{"id": "e1", "source": "n1", "target": "n2", "type": "ethernet"}]
     assert "viewport" not in result
+
+
+@pytest.mark.anyio
+async def test_get_canvas_slims_flat_backend_nodes(mock_backend):
+    mock_backend.get = AsyncMock(return_value={
+        "nodes": [
+            {
+                "id": "n1",
+                "type": "lxc",
+                "label": "Homelable",
+                "ip": "192.168.20.151",
+                "parent_id": "pve01",
+                "pos_x": 100,
+                "pos_y": 200,
+                "reference_document": "docs/reference/infrastructure/lxcs/lxc-151-homelable.md",
+                "access_profiles": [{"host_id": "lxc-151-homelable", "transport": "api"}],
+                "credential_refs": [{"credential_id": "api-homelable-mcp-api-key"}],
+            }
+        ],
+        "edges": [],
+        "viewport": {"x": 0, "y": 0, "zoom": 1},
+    })
+    result = await _dispatch("get_canvas", {})
+    assert result["nodes"] == [
+        {
+            "id": "n1",
+            "type": "lxc",
+            "node_type": "lxc",
+            "label": "Homelable",
+            "ip": "192.168.20.151",
+            "parent_id": "pve01",
+            "reference_document": "docs/reference/infrastructure/lxcs/lxc-151-homelable.md",
+            "access_profiles": [{"host_id": "lxc-151-homelable", "transport": "api"}],
+            "credential_refs": [{"credential_id": "api-homelable-mcp-api-key"}],
+        }
+    ]
 
 
 @pytest.mark.anyio

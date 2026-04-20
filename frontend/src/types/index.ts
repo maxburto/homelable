@@ -51,6 +51,28 @@ export interface NodeProperty {
   visible: boolean
 }
 
+export interface AccessProfile extends Record<string, unknown> {
+  host_id?: string
+  display_name?: string
+  transport?: 'ssh' | 'https' | 'http' | 'api' | 'websocket-jsonrpc' | 'nfs' | 'smb' | 'console' | 'other'
+  endpoint?: string
+  canonical?: boolean
+  auth_method?: 'credential_ops' | 'local_session' | 'none' | 'external_manual' | 'unknown'
+  credential_ids?: string[]
+  helper?: string | null
+  validation?: string | null
+  never?: string[]
+  blockers?: string[]
+}
+
+export interface CredentialRef extends Record<string, unknown> {
+  credential_id?: string
+  purpose?: 'management_login' | 'runtime_api_key' | 'service_admin' | 'app_secret' | 'host_login' | 'backup' | 'other'
+  credential_ops_profile?: string | null
+  preferred_flow?: 'credential_ops_metadata' | 'credential_ops_use_on_behalf' | 'approved_create' | 'approved_update' | 'approved_rotate'
+  notes?: string | null
+}
+
 export interface NodeData extends Record<string, unknown> {
   label: string
   type: NodeType
@@ -65,6 +87,9 @@ export interface NodeData extends Record<string, unknown> {
   last_seen?: string
   response_time_ms?: number
   notes?: string
+  reference_document?: string | null
+  access_profiles?: AccessProfile[]
+  credential_refs?: CredentialRef[]
   cpu_count?: number
   cpu_model?: string
   ram_gb?: number

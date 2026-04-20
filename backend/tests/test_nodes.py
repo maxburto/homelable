@@ -47,6 +47,63 @@ async def test_update_node(client: AsyncClient, headers: dict):
     assert res.json()["ip"] == "10.0.0.1"
 
 
+async def test_create_node_with_inventory_reference_fields(client: AsyncClient, headers: dict):
+    access_profiles = [
+        {
+            "host_id": "lxc-151-homelable",
+            "display_name": "Homelable MCP",
+            "transport": "api",
+            "endpoint": "http://homelable.home.local:8001/mcp",
+            "canonical": True,
+            "auth_method": "credential_ops",
+            "credential_ids": ["api-homelable-mcp-api-key"],
+            "helper": "scripts/run-codex-homelable-mcp-proxy.sh",
+            "validation": "scripts/validate-homelable-mcp-proxy-service.py",
+            "never": ["direct OpenBao reads"],
+            "blockers": [],
+        }
+    ]
+    credential_refs = [
+        {
+            "credential_id": "api-homelable-mcp-api-key",
+            "purpose": "runtime_api_key",
+            "credential_ops_profile": "codex-ops-read",
+            "preferred_flow": "credential_ops_metadata",
+            "notes": "Non-secret credential reference only.",
+        }
+    ]
+    payload = {
+        "type": "lxc",
+        "label": "Homelable",
+        "status": "online",
+        "reference_document": "docs/reference/infrastructure/lxcs/lxc-151-homelable.md",
+        "access_profiles": access_profiles,
+        "credential_refs": credential_refs,
+    }
+    res = await client.post("/api/v1/nodes", json=payload, headers=headers)
+    assert res.status_code == 201
+    data = res.json()
+    assert data["reference_document"] == payload["reference_document"]
+    assert data["access_profiles"] == access_profiles
+    assert data["credential_refs"] == credential_refs
+
+
+async def test_update_node_inventory_reference_fields(client: AsyncClient, headers: dict):
+    create = await client.post("/api/v1/nodes", json={"type": "server", "label": "Srv", "status": "unknown"}, headers=headers)
+    node_id = create.json()["id"]
+    payload = {
+        "reference_document": "docs/reference/infrastructure/hosts/server.md",
+        "access_profiles": [{"host_id": "server", "transport": "ssh", "endpoint": "server.home.local"}],
+        "credential_refs": [{"credential_id": "infra-server-root-password", "preferred_flow": "credential_ops_use_on_behalf"}],
+    }
+    res = await client.patch(f"/api/v1/nodes/{node_id}", json=payload, headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["reference_document"] == payload["reference_document"]
+    assert data["access_profiles"] == payload["access_profiles"]
+    assert data["credential_refs"] == payload["credential_refs"]
+
+
 async def test_delete_node(client: AsyncClient, headers: dict):
     create = await client.post("/api/v1/nodes", json={"type": "switch", "label": "Switch", "status": "unknown"}, headers=headers)
     node_id = create.json()["id"]
