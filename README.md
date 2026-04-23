@@ -115,8 +115,12 @@ Homelable can exposes a [Model Context Protocol](https://modelcontextprotocol.io
 **1. Add the keys to your `.env`:**
 
 ```env
-# Authenticates AI clients (Claude Code, etc.) → MCP server
+# Authenticates read-oriented AI clients (Claude Code, shared OpenClaw Grace agents, etc.) → MCP server
 MCP_API_KEY=mcp_sk_changeme
+
+# Optional write-capable MCP client key for bounded maintenance lanes
+# Leave blank to preserve legacy single-key write behavior until the write lane is provisioned
+MCP_WRITE_API_KEY=
 
 # Authenticates MCP server → backend (internal Docker network only, never exposed)
 MCP_SERVICE_KEY=svc_changeme
@@ -182,7 +186,9 @@ Or add it manually to `~/.claude.json`:
 ### Security
 
 - The MCP server is **not** intended to be exposed to the internet — keep port 8001 firewalled to your LAN.
-- Rotate the key any time by updating `MCP_API_KEY` in `.env` and restarting: `docker compose restart mcp`.
+- When `MCP_WRITE_API_KEY` is unset, `MCP_API_KEY` keeps the legacy full-surface behavior for backward compatibility.
+- When `MCP_WRITE_API_KEY` is set, `MCP_API_KEY` becomes the readonly client key and `MCP_WRITE_API_KEY` becomes the write-capable maintenance key.
+- Rotate the client key any time by updating `MCP_API_KEY` or `MCP_WRITE_API_KEY` in `.env` and restarting: `docker compose restart mcp`.
 - The MCP server communicates with the backend over the internal Docker network — the backend API is never directly exposed to MCP clients.
 
 ---

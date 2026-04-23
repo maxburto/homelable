@@ -1,6 +1,16 @@
 import pytest
 from unittest.mock import AsyncMock, patch
-from app.tools import _dispatch
+import json
+
+from app.authority import READONLY_AUTHORITY, WRITE_AUTHORITY
+from app.tools import (
+    MUTATION_TOOL_NAMES,
+    READONLY_TOOL_NAMES,
+    _all_tools,
+    _call_tool_for_authority,
+    _dispatch,
+    _filter_tools_for_authority,
+)
 
 
 @pytest.fixture
@@ -255,3 +265,41 @@ async def test_list_pending_devices(mock_backend):
 async def test_unknown_tool():
     with pytest.raises(ValueError, match="Unknown tool"):
         await _dispatch("nonexistent", {})
+
+
+def test_readonly_filter_tools_exposes_only_read_tools():
+    names = {tool.name for tool in _filter_tools_for_authority(READONLY_AUTHORITY)}
+    assert names == READONLY_TOOL_NAMES
+    assert not names & MUTATION_TOOL_NAMES
+
+
+def test_write_filter_tools_exposes_full_surface():
+    names = {tool.name for tool in _filter_tools_for_authority(WRITE_AUTHORITY)}
+    assert names == {tool.name for tool in _all_tools()}
+    assert READONLY_TOOL_NAMES <= names
+    assert MUTATION_TOOL_NAMES <= names
+
+
+@pytest.mark.anyio
+async def test_readonly_authority_blocks_mutation_tools(mock_backend):
+    result = await _call_tool_for_authority(
+        "create_node",
+        {"type": "server", "label": "Blocked"},
+        READONLY_AUTHORITY,
+    )
+    payload = json.loads(result[0].text)
+    assert payload == {
+        "blocked": True,
+        "reason": "readonly_mcp_api_key",
+        "tool": "create_node",
+    }
+    mock_backend.post.assert_not_called()
+
+
+@pytest.mark.anyio
+async def test_readonly_authority_allows_read_tools(mock_backend):
+    mock_backend.get = AsyncMock(return_value=[{"id": "1", "label": "Freebox"}])
+    result = await _call_tool_for_authority("list_nodes", {}, READONLY_AUTHORITY)
+    payload = json.loads(result[0].text)
+    mock_backend.get.assert_called_once_with("/api/v1/nodes")
+    assert payload == [{"id": "1", "label": "Freebox"}]

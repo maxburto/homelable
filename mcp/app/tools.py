@@ -1,10 +1,24 @@
 import json
 from mcp.server import Server
 from mcp.types import Tool, TextContent
+from .authority import READONLY_AUTHORITY, WRITE_AUTHORITY, get_current_authority
 from .backend_client import backend
 
 
 NODE_TYPES = ["isp", "router", "switch", "server", "proxmox", "vm", "lxc", "nas", "iot", "ap", "generic"]
+READONLY_TOOL_NAMES = frozenset({"get_canvas", "list_nodes", "list_pending_devices"})
+MUTATION_TOOL_NAMES = frozenset(
+    {
+        "approve_device",
+        "create_edge",
+        "create_node",
+        "delete_edge",
+        "delete_node",
+        "hide_device",
+        "trigger_scan",
+        "update_node",
+    }
+)
 NODE_METADATA_SCHEMA = {
     "type": {"type": "string", "enum": NODE_TYPES},
     "label": {"type": "string"},
@@ -26,82 +40,115 @@ NODE_METADATA_SCHEMA = {
 }
 
 
+def _all_tools() -> list[Tool]:
+    return [
+        Tool(name="create_node", description="Add a new node to the homelab canvas", inputSchema={
+            "type": "object",
+            "required": ["type", "label"],
+            "properties": NODE_METADATA_SCHEMA,
+        }),
+        Tool(name="update_node", description="Update an existing node", inputSchema={
+            "type": "object",
+            "required": ["id"],
+            "properties": {"id": {"type": "string"}, **NODE_METADATA_SCHEMA},
+        }),
+        Tool(name="delete_node", description="Delete a node from the canvas", inputSchema={
+            "type": "object",
+            "required": ["id"],
+            "properties": {"id": {"type": "string"}},
+        }),
+        Tool(name="create_edge", description="Create a network link between two nodes", inputSchema={
+            "type": "object",
+            "required": ["source", "target"],
+            "properties": {
+                "source": {"type": "string"},
+                "target": {"type": "string"},
+                "type":   {"type": "string", "enum": ["ethernet","wifi","iot","vlan","virtual"], "default": "ethernet"},
+                "label":  {"type": "string"},
+            },
+        }),
+        Tool(name="delete_edge", description="Delete a network link", inputSchema={
+            "type": "object",
+            "required": ["id"],
+            "properties": {"id": {"type": "string"}},
+        }),
+        Tool(name="trigger_scan", description="Trigger a network discovery scan", inputSchema={
+            "type": "object",
+            "properties": {
+                "ranges": {"type": "array", "items": {"type": "string"}, "description": "CIDR ranges to scan (uses configured defaults if omitted)"},
+            },
+        }),
+        Tool(name="approve_device", description="Approve a pending discovered device and create a node", inputSchema={
+            "type": "object",
+            "required": ["id"],
+            "properties": {
+                "id":    {"type": "string"},
+                "type":  {"type": "string", "enum": NODE_TYPES, "default": "generic"},
+                "label": {"type": "string"},
+                "reference_document": NODE_METADATA_SCHEMA["reference_document"],
+                "access_profiles": NODE_METADATA_SCHEMA["access_profiles"],
+                "credential_refs": NODE_METADATA_SCHEMA["credential_refs"],
+            },
+        }),
+        Tool(name="hide_device", description="Hide a pending discovered device", inputSchema={
+            "type": "object",
+            "required": ["id"],
+            "properties": {"id": {"type": "string"}},
+        }),
+        Tool(name="get_canvas", description="Get the full canvas: all nodes and edges in the homelab topology", inputSchema={
+            "type": "object",
+            "properties": {},
+        }),
+        Tool(name="list_nodes", description="List all nodes (devices) in the homelab", inputSchema={
+            "type": "object",
+            "properties": {},
+        }),
+        Tool(name="list_pending_devices", description="List devices discovered by scan but not yet approved or hidden", inputSchema={
+            "type": "object",
+            "properties": {},
+        }),
+    ]
+
+
+def _filter_tools_for_authority(authority: str) -> list[Tool]:
+    tools = _all_tools()
+    if authority == WRITE_AUTHORITY:
+        return tools
+    return [tool for tool in tools if tool.name in READONLY_TOOL_NAMES]
+
+
+def _is_mutation_tool(name: str) -> bool:
+    return name in MUTATION_TOOL_NAMES
+
+
+async def _call_tool_for_authority(name: str, arguments: dict, authority: str) -> list[TextContent]:
+    if authority == READONLY_AUTHORITY and _is_mutation_tool(name):
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "blocked": True,
+                        "reason": "readonly_mcp_api_key",
+                        "tool": name,
+                    }
+                ),
+            )
+        ]
+
+    result = await _dispatch(name, arguments)
+    return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
+
 def register_tools(server: Server):
 
     @server.list_tools()
     async def list_tools():
-        return [
-            Tool(name="create_node", description="Add a new node to the homelab canvas", inputSchema={
-                "type": "object",
-                "required": ["type", "label"],
-                "properties": NODE_METADATA_SCHEMA,
-            }),
-            Tool(name="update_node", description="Update an existing node", inputSchema={
-                "type": "object",
-                "required": ["id"],
-                "properties": {"id": {"type": "string"}, **NODE_METADATA_SCHEMA},
-            }),
-            Tool(name="delete_node", description="Delete a node from the canvas", inputSchema={
-                "type": "object",
-                "required": ["id"],
-                "properties": {"id": {"type": "string"}},
-            }),
-            Tool(name="create_edge", description="Create a network link between two nodes", inputSchema={
-                "type": "object",
-                "required": ["source", "target"],
-                "properties": {
-                    "source": {"type": "string"},
-                    "target": {"type": "string"},
-                    "type":   {"type": "string", "enum": ["ethernet","wifi","iot","vlan","virtual"], "default": "ethernet"},
-                    "label":  {"type": "string"},
-                },
-            }),
-            Tool(name="delete_edge", description="Delete a network link", inputSchema={
-                "type": "object",
-                "required": ["id"],
-                "properties": {"id": {"type": "string"}},
-            }),
-            Tool(name="trigger_scan", description="Trigger a network discovery scan", inputSchema={
-                "type": "object",
-                "properties": {
-                    "ranges": {"type": "array", "items": {"type": "string"}, "description": "CIDR ranges to scan (uses configured defaults if omitted)"},
-                },
-            }),
-            Tool(name="approve_device", description="Approve a pending discovered device and create a node", inputSchema={
-                "type": "object",
-                "required": ["id"],
-                "properties": {
-                    "id":    {"type": "string"},
-                    "type":  {"type": "string", "enum": NODE_TYPES, "default": "generic"},
-                    "label": {"type": "string"},
-                    "reference_document": NODE_METADATA_SCHEMA["reference_document"],
-                    "access_profiles": NODE_METADATA_SCHEMA["access_profiles"],
-                    "credential_refs": NODE_METADATA_SCHEMA["credential_refs"],
-                },
-            }),
-            Tool(name="hide_device", description="Hide a pending discovered device", inputSchema={
-                "type": "object",
-                "required": ["id"],
-                "properties": {"id": {"type": "string"}},
-            }),
-            Tool(name="get_canvas", description="Get the full canvas: all nodes and edges in the homelab topology", inputSchema={
-                "type": "object",
-                "properties": {},
-            }),
-            Tool(name="list_nodes", description="List all nodes (devices) in the homelab", inputSchema={
-                "type": "object",
-                "properties": {},
-            }),
-            Tool(name="list_pending_devices", description="List devices discovered by scan but not yet approved or hidden", inputSchema={
-                "type": "object",
-                "properties": {},
-            }),
-        ]
+        return _filter_tools_for_authority(get_current_authority())
 
     @server.call_tool()
     async def call_tool(name: str, arguments: dict):
-        result = await _dispatch(name, arguments)
-        return [TextContent(type="text", text=json.dumps(result, indent=2))]
+        return await _call_tool_for_authority(name, arguments, get_current_authority())
 
 
 def _slim_canvas(raw: dict) -> dict:

@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, patch
 from httpx import AsyncClient, ASGITransport
 
 os.environ.setdefault("MCP_API_KEY", "test_key")
+os.environ.setdefault("MCP_WRITE_API_KEY", "write_key")
 os.environ.setdefault("BACKEND_URL", "http://testbackend")
 os.environ.setdefault("AUTH_USERNAME", "admin")
 os.environ.setdefault("AUTH_PASSWORD", "admin")
@@ -14,6 +15,11 @@ from app.main import app  # noqa: E402
 @pytest.fixture
 def api_key():
     return "test_key"
+
+
+@pytest.fixture
+def write_api_key():
+    return "write_key"
 
 
 @pytest.fixture
