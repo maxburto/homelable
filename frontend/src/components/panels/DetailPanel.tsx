@@ -19,6 +19,16 @@ const EMPTY_FORM: SvcForm = { port: '', protocol: 'tcp', service_name: '', path:
 type PropForm = { key: string; value: string; icon: string | null; visible: boolean }
 const EMPTY_PROP: PropForm = { key: '', value: '', icon: null, visible: true }
 
+export function formatLastSeen(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const normalized = /(?:z|[+-]\d{2}:?\d{2})$/i.test(trimmed) ? trimmed : `${trimmed}Z`
+  const date = new Date(normalized)
+  if (Number.isNaN(date.getTime())) return null
+  return date.toLocaleString()
+}
+
 export function DetailPanel({ onEdit }: DetailPanelProps) {
   const { nodes, selectedNodeId, selectedNodeIds, setSelectedNode, deleteNode, updateNode, snapshotHistory, createGroup, ungroup } = useCanvasStore()
 
@@ -85,6 +95,7 @@ export function DetailPanel({ onEdit }: DetailPanelProps) {
   const services = data.services ?? []
   const statusColor = STATUS_COLORS[data.status]
   const host = data.ip ?? data.hostname
+  const lastSeen = formatLastSeen(data.last_seen)
 
   const handleDelete = () => {
     if (confirm(`Delete "${data.label}"?`)) {
@@ -233,7 +244,7 @@ export function DetailPanel({ onEdit }: DetailPanelProps) {
         {data.mac && <DetailRow label="MAC" value={data.mac} mono />}
         {data.os && <DetailRow label="OS" value={data.os} />}
         {data.check_method && <DetailRow label="Check" value={data.check_method} mono />}
-        {data.last_seen && <DetailRow label="Last Seen" value={new Date(data.last_seen.endsWith('Z') ? data.last_seen : data.last_seen + 'Z').toLocaleString()} />}
+        {lastSeen && <DetailRow label="Last Seen" value={lastSeen} />}
       </div>
 
       {/* Properties section */}

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { DetailPanel } from '../DetailPanel'
+import { DetailPanel, formatLastSeen } from '../DetailPanel'
 import * as canvasStore from '@/stores/canvasStore'
 import type { NodeData } from '@/types'
 import type { Node } from '@xyflow/react'
@@ -61,6 +61,23 @@ describe('DetailPanel', () => {
     render(<DetailPanel onEdit={vi.fn()} />)
     expect(screen.getByText('My Server')).toBeDefined()
     expect(screen.getByText('online')).toBeDefined()
+  })
+
+  it('formats valid Last Seen timestamps', () => {
+    expect(formatLastSeen('2026-04-27T21:50:51.511979')).not.toBeNull()
+    expect(formatLastSeen('2026-04-27T21:50:51.511979Z')).not.toBeNull()
+  })
+
+  it('does not render Invalid Date for missing or invalid Last Seen values', () => {
+    expect(formatLastSeen(null)).toBeNull()
+    expect(formatLastSeen('')).toBeNull()
+    expect(formatLastSeen('Invalid Date')).toBeNull()
+
+    setupStore({ last_seen: 'Invalid Date' })
+    render(<DetailPanel onEdit={vi.fn()} />)
+
+    expect(screen.queryByText('Last Seen')).toBeNull()
+    expect(screen.queryByText('Invalid Date')).toBeNull()
   })
 
   it('renders nothing for groupRect nodes', () => {
