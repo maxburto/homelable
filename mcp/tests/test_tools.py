@@ -44,6 +44,35 @@ async def test_create_node_with_inventory_reference_fields(mock_backend):
 
 
 @pytest.mark.anyio
+async def test_create_node_allows_group_rect_zone_fields(mock_backend):
+    payload = {
+        "type": "groupRect",
+        "label": "PVE01 Zone",
+        "pos_x": -80.0,
+        "pos_y": 585.5,
+        "custom_colors": {
+            "border": "#22d3ee",
+            "background": "#22d3ee14",
+            "width": 5900.0,
+            "height": 477.5,
+            "z_order": 0,
+        },
+        "reference_document": "docs/reference/infrastructure/hardware/homelab-proxmox-node.md",
+    }
+    await _dispatch("create_node", payload.copy())
+    mock_backend.post.assert_called_once_with("/api/v1/nodes", payload)
+
+
+def test_create_node_schema_includes_group_rect_and_canvas_fields():
+    create_tool = next(tool for tool in _all_tools() if tool.name == "create_node")
+    properties = create_tool.inputSchema["properties"]
+    assert "groupRect" in properties["type"]["enum"]
+    assert "custom_colors" in properties
+    assert "pos_x" in properties
+    assert "pos_y" in properties
+
+
+@pytest.mark.anyio
 async def test_update_node(mock_backend):
     await _dispatch("update_node", {"id": "42", "label": "New name"})
     mock_backend.patch.assert_called_once_with("/api/v1/nodes/42", {"label": "New name"})

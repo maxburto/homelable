@@ -5,7 +5,7 @@ from .authority import READONLY_AUTHORITY, WRITE_AUTHORITY, get_current_authorit
 from .backend_client import backend
 
 
-NODE_TYPES = ["isp", "router", "switch", "server", "proxmox", "vm", "lxc", "nas", "iot", "ap", "generic"]
+NODE_TYPES = ["isp", "router", "switch", "server", "proxmox", "vm", "lxc", "nas", "iot", "ap", "generic", "groupRect"]
 READONLY_TOOL_NAMES = frozenset({"get_canvas", "list_nodes", "list_pending_devices"})
 MUTATION_TOOL_NAMES = frozenset(
     {
@@ -37,6 +37,13 @@ NODE_METADATA_SCHEMA = {
     "access_profiles": {"type": "array", "items": {"type": "object"}, "description": "Non-secret access metadata for this node."},
     "credential_refs": {"type": "array", "items": {"type": "object"}, "description": "Non-secret references to Credential Ops credential IDs and approved flows."},
     "properties": {"type": "array", "items": {"type": "object"}},
+    "pos_x": {"type": "number"},
+    "pos_y": {"type": "number"},
+    "custom_colors": {"type": ["object", "null"], "description": "Canvas styling and dimensions for visual-only nodes such as zones."},
+    "custom_icon": {"type": ["string", "null"]},
+    "width": {"type": ["number", "null"]},
+    "height": {"type": ["number", "null"]},
+    "bottom_handles": {"type": "integer"},
 }
 
 
