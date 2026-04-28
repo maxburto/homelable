@@ -21,10 +21,19 @@ class TokenResponse(BaseModel):
 
 @router.post("/login", response_model=TokenResponse)
 async def login(body: LoginRequest) -> TokenResponse:
-    # Always run both checks to prevent timing-based username enumeration.
-    # hmac.compare_digest is constant-time; verify_password (bcrypt) always runs.
-    username_ok = hmac.compare_digest(body.username, settings.auth_username)
-    password_ok = verify_password(body.password, settings.auth_password_hash)
+    # Always run a bcrypt verify call so unknown users do not take a cheap path.
+    users = settings.auth_users()
+    password_hash = ""
+    username_ok = False
+    for username, candidate_hash in users.items():
+        if hmac.compare_digest(body.username, username):
+            username_ok = True
+            password_hash = candidate_hash
+            break
+    if not password_hash:
+        password_hash = settings.auth_password_hash or next(iter(users.values()), "")
+
+    password_ok = verify_password(body.password, password_hash)
     if not username_ok or not password_ok:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     token = create_access_token(body.username)

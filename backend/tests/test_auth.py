@@ -10,6 +10,26 @@ async def test_login_success(client: AsyncClient):
     assert data["token_type"] == "bearer"
 
 
+async def test_login_success_with_auth_users_json(client: AsyncClient):
+    from app.core.config import settings
+    from app.core.security import hash_password
+
+    original_users_json = settings.auth_users_json
+    settings.auth_users_json = '{"admin":"%s","codex-playwright":{"password_hash":"%s"}}' % (
+        hash_password("admin"),
+        hash_password("codex-test-password"),
+    )
+    try:
+        res = await client.post(
+            "/api/v1/auth/login",
+            json={"username": "codex-playwright", "password": "codex-test-password"},
+        )
+        assert res.status_code == 200
+        assert "access_token" in res.json()
+    finally:
+        settings.auth_users_json = original_users_json
+
+
 async def test_login_wrong_password(client: AsyncClient):
     res = await client.post("/api/v1/auth/login", json={"username": "admin", "password": "wrong"})
     assert res.status_code == 401

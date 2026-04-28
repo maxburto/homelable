@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     # Auth — set AUTH_USERNAME and AUTH_PASSWORD_HASH in .env
     auth_username: str = "admin"
     auth_password_hash: str = ""
+    # Optional multi-user auth map for operator and automation accounts.
+    # Supported shapes:
+    #   {"admin": "$2b$12$...", "codex-playwright": "$2b$12$..."}
+    #   {"admin": {"password_hash": "$2b$12$..."}}
+    auth_users_json: str = ""
 
     @model_validator(mode="after")
     def check_password_hash(self) -> "Settings":
@@ -45,6 +50,35 @@ class Settings(BaseSettings):
                 "in your .env file: AUTH_PASSWORD_HASH='$2b$12$...'"
             )
         return self
+
+    def auth_users(self) -> dict[str, str]:
+        users: dict[str, str] = {}
+        if self.auth_username and self.auth_password_hash:
+            users[self.auth_username] = self.auth_password_hash
+        if not self.auth_users_json.strip():
+            return users
+
+        try:
+            raw_users = json.loads(self.auth_users_json)
+        except json.JSONDecodeError:
+            logger.error("AUTH_USERS_JSON is not valid JSON; falling back to AUTH_USERNAME/AUTH_PASSWORD_HASH")
+            return users
+
+        if not isinstance(raw_users, dict):
+            logger.error("AUTH_USERS_JSON must be a JSON object; falling back to AUTH_USERNAME/AUTH_PASSWORD_HASH")
+            return users
+
+        for username, value in raw_users.items():
+            if not isinstance(username, str) or not username.strip():
+                continue
+            password_hash = ""
+            if isinstance(value, str):
+                password_hash = value
+            elif isinstance(value, dict) and isinstance(value.get("password_hash"), str):
+                password_hash = str(value["password_hash"])
+            if password_hash:
+                users[username] = password_hash
+        return users
 
     # Scanner
     scanner_ranges: list[str] = ["192.168.1.0/24"]
