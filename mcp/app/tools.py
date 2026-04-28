@@ -5,7 +5,21 @@ from .authority import READONLY_AUTHORITY, WRITE_AUTHORITY, get_current_authorit
 from .backend_client import backend
 
 
-NODE_TYPES = ["isp", "router", "switch", "server", "proxmox", "vm", "lxc", "nas", "iot", "ap", "generic", "groupRect"]
+NODE_TYPES = [
+    "isp",
+    "router",
+    "switch",
+    "server",
+    "proxmox",
+    "vm",
+    "lxc",
+    "nas",
+    "iot",
+    "ap",
+    "service",
+    "generic",
+    "groupRect",
+]
 READONLY_TOOL_NAMES = frozenset({"get_canvas", "list_nodes", "list_pending_devices"})
 MUTATION_TOOL_NAMES = frozenset(
     {
@@ -168,6 +182,10 @@ def _slim_canvas(raw: dict) -> dict:
         "hostname",
         "status",
         "services",
+        "properties",
+        "notes",
+        "check_method",
+        "check_target",
         "description",
         "parent_id",
         "parentId",

@@ -128,6 +128,7 @@ export const NODE_TYPE_DEFAULT_ICONS: Record<NodeType, LucideIcon> = {
   nas:      HardDrive,
   iot:      Cpu,
   ap:       Wifi,
+  service:  Workflow,
   camera:   Cctv,
   printer:  Printer,
   computer: Monitor,

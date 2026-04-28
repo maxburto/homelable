@@ -3,11 +3,11 @@ import { X, Edit, Trash2, ExternalLink, Plus, Pencil, Layers, Ungroup, Eye, EyeO
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useCanvasStore } from '@/stores/canvasStore'
-import { NODE_TYPE_LABELS, STATUS_COLORS, type ServiceInfo, type NodeData, type NodeProperty } from '@/types'
+import { NODE_TYPE_LABELS, STATUS_COLORS, type ServiceInfo, type NodeData, type NodeProperty, type EdgeData } from '@/types'
 import { getServiceUrl } from '@/utils/serviceUrl'
 import { primaryIp } from '@/utils/maskIp'
 import { PROPERTY_ICONS, PROPERTY_ICON_NAMES, resolvePropertyIcon } from '@/utils/propertyIcons'
-import type { Node } from '@xyflow/react'
+import type { Edge, Node } from '@xyflow/react'
 
 interface DetailPanelProps {
   onEdit: (id: string) => void
@@ -18,6 +18,55 @@ const EMPTY_FORM: SvcForm = { port: '', protocol: 'tcp', service_name: '', path:
 
 type PropForm = { key: string; value: string; icon: string | null; visible: boolean }
 const EMPTY_PROP: PropForm = { key: '', value: '', icon: null, visible: true }
+
+function edgeKind(edge: Edge<EdgeData>): string {
+  return edge.data?.type ?? edge.type ?? ''
+}
+
+function connectedServiceNodes(
+  host: Node<NodeData>,
+  nodes: Node<NodeData>[],
+  edges: Edge<EdgeData>[],
+): Node<NodeData>[] {
+  const byId = new Map(nodes.map((item) => [item.id, item]))
+  const seen = new Set<string>()
+  const services: Node<NodeData>[] = []
+
+  for (const edge of edges) {
+    if (edgeKind(edge) !== 'virtual') continue
+    const serviceId = edge.source === host.id ? edge.target : edge.target === host.id ? edge.source : null
+    if (!serviceId || seen.has(serviceId)) continue
+    const service = byId.get(serviceId)
+    if (service?.data.type !== 'service') continue
+    seen.add(service.id)
+    services.push(service)
+  }
+
+  return services.sort((a, b) => a.data.label.localeCompare(b.data.label))
+}
+
+function serviceHostNode(
+  service: Node<NodeData>,
+  nodes: Node<NodeData>[],
+  edges: Edge<EdgeData>[],
+): Node<NodeData> | null {
+  const byId = new Map(nodes.map((item) => [item.id, item]))
+  for (const edge of edges) {
+    if (edgeKind(edge) !== 'virtual') continue
+    const hostId = edge.target === service.id ? edge.source : edge.source === service.id ? edge.target : null
+    if (!hostId) continue
+    const host = byId.get(hostId)
+    if (host && host.data.type !== 'service' && host.data.type !== 'groupRect' && host.data.type !== 'group') {
+      return host
+    }
+  }
+  return null
+}
+
+function propertyValue(data: NodeData, key: string): string | null {
+  const property = data.properties?.find((item) => item.key.toLowerCase() === key.toLowerCase())
+  return property?.value ?? null
+}
 
 export function formatLastSeen(value: unknown): string | null {
   if (typeof value !== 'string') return null
@@ -30,7 +79,7 @@ export function formatLastSeen(value: unknown): string | null {
 }
 
 export function DetailPanel({ onEdit }: DetailPanelProps) {
-  const { nodes, selectedNodeId, selectedNodeIds, setSelectedNode, deleteNode, updateNode, snapshotHistory, createGroup, ungroup } = useCanvasStore()
+  const { nodes, edges = [], selectedNodeId, selectedNodeIds, setSelectedNode, deleteNode, updateNode, snapshotHistory, createGroup, ungroup } = useCanvasStore()
 
   const [addingForNode, setAddingForNode] = useState<string | null>(null)
   const [newSvc, setNewSvc] = useState<SvcForm>(EMPTY_FORM)
@@ -96,6 +145,8 @@ export function DetailPanel({ onEdit }: DetailPanelProps) {
   const statusColor = STATUS_COLORS[data.status]
   const host = data.ip ?? data.hostname
   const lastSeen = formatLastSeen(data.last_seen)
+  const hostedServices = data.type === 'service' ? [] : connectedServiceNodes(node, nodes, edges)
+  const hostedOn = data.type === 'service' ? serviceHostNode(node, nodes, edges) : null
 
   const handleDelete = () => {
     if (confirm(`Delete "${data.label}"?`)) {
@@ -246,6 +297,44 @@ export function DetailPanel({ onEdit }: DetailPanelProps) {
         {data.check_method && <DetailRow label="Check" value={data.check_method} mono />}
         {lastSeen && <DetailRow label="Last Seen" value={lastSeen} />}
       </div>
+
+      {hostedOn && (
+        <div className="px-4 py-3 border-t border-border">
+          <div className="text-xs text-muted-foreground mb-2">Hosted On</div>
+          <button
+            onClick={() => setSelectedNode(hostedOn.id)}
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md bg-[#21262d] hover:bg-[#30363d] transition-colors text-left"
+          >
+            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: STATUS_COLORS[hostedOn.data.status] }} />
+            <span className="text-xs font-medium text-foreground truncate">{hostedOn.data.label}</span>
+            <span className="ml-auto text-[10px] text-muted-foreground shrink-0">
+              {NODE_TYPE_LABELS[hostedOn.data.type] ?? hostedOn.data.type}
+            </span>
+          </button>
+        </div>
+      )}
+
+      {hostedServices.length > 0 && (
+        <div className="px-4 py-3 border-t border-border">
+          <div className="text-xs text-muted-foreground mb-2">Hosted Services ({hostedServices.length})</div>
+          <div className="flex flex-col gap-1.5">
+            {hostedServices.map((service) => {
+              const runtime = propertyValue(service.data, 'Runtime')
+              return (
+                <button
+                  key={service.id}
+                  onClick={() => setSelectedNode(service.id)}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md bg-[#21262d] hover:bg-[#30363d] transition-colors text-left"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: STATUS_COLORS[service.data.status] }} />
+                  <span className="text-xs font-medium text-foreground truncate">{service.data.label}</span>
+                  {runtime && <span className="ml-auto text-[10px] text-muted-foreground truncate max-w-24">{runtime}</span>}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Properties section */}
       <div className="px-4 py-3 border-t border-border">

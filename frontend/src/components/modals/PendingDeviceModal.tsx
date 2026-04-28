@@ -1,4 +1,4 @@
-import { Globe, Router, Server, Layers, Box, Container, HardDrive, Cpu, Wifi, Circle, Network } from 'lucide-react'
+import { Globe, Router, Server, Layers, Box, Container, HardDrive, Cpu, Wifi, Circle, Network, Workflow } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 
@@ -41,6 +41,7 @@ const TYPE_ICONS: Record<string, React.ElementType> = {
   nas: HardDrive,
   iot: Cpu,
   ap: Wifi,
+  service: Workflow,
   switch: Network,
   generic: Circle,
 }

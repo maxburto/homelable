@@ -9,6 +9,7 @@ export type NodeType =
   | 'nas'
   | 'iot'
   | 'ap'
+  | 'service'
   | 'camera'
   | 'printer'
   | 'computer'
@@ -148,6 +149,7 @@ export const NODE_TYPE_LABELS: Record<NodeType, string> = {
   nas: 'NAS',
   iot: 'IoT Device',
   ap: 'Access Point',
+  service: 'Service / App',
   camera: 'Camera',
   printer: 'Printer',
   computer: 'Computer',

@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { DetailPanel, formatLastSeen } from '../DetailPanel'
 import * as canvasStore from '@/stores/canvasStore'
-import type { NodeData } from '@/types'
-import type { Node } from '@xyflow/react'
+import type { EdgeData, NodeData } from '@/types'
+import type { Edge, Node } from '@xyflow/react'
 
 vi.mock('@/stores/canvasStore')
 
@@ -22,9 +22,20 @@ function makeNode(data: Partial<NodeData>): Node<NodeData> {
   }
 }
 
-function setupStore(nodeData: Partial<NodeData> = {}) {
+function makeEdge(source: string, target: string): Edge<EdgeData> {
+  return {
+    id: `${source}-${target}`,
+    source,
+    target,
+    type: 'virtual',
+    data: { type: 'virtual' },
+  }
+}
+
+function setupStore(nodeData: Partial<NodeData> = {}, extraNodes: Node<NodeData>[] = [], edges: Edge<EdgeData>[] = []) {
   vi.mocked(canvasStore.useCanvasStore).mockReturnValue({
-    nodes: [makeNode(nodeData)],
+    nodes: [makeNode(nodeData), ...extraNodes],
+    edges,
     selectedNodeId: 'n1',
     selectedNodeIds: [],
     setSelectedNode: vi.fn(),
@@ -40,6 +51,7 @@ describe('DetailPanel', () => {
   beforeEach(() => {
     vi.mocked(canvasStore.useCanvasStore).mockReturnValue({
       nodes: [],
+      edges: [],
       selectedNodeId: null,
       selectedNodeIds: [],
       setSelectedNode: vi.fn(),
@@ -130,6 +142,7 @@ describe('DetailPanel', () => {
       const updateNode = vi.fn()
       vi.mocked(canvasStore.useCanvasStore).mockReturnValue({
         nodes: [makeNode({ properties: [] })],
+        edges: [],
         selectedNodeId: 'n1',
         selectedNodeIds: [],
         setSelectedNode: vi.fn(),
@@ -157,6 +170,7 @@ describe('DetailPanel', () => {
       const updateNode = vi.fn()
       vi.mocked(canvasStore.useCanvasStore).mockReturnValue({
         nodes: [makeNode({ properties: [{ key: 'RAM', value: '32 GB', icon: 'MemoryStick', visible: true }] })],
+        edges: [],
         selectedNodeId: 'n1',
         selectedNodeIds: [],
         setSelectedNode: vi.fn(),
@@ -178,6 +192,7 @@ describe('DetailPanel', () => {
       const updateNode = vi.fn()
       vi.mocked(canvasStore.useCanvasStore).mockReturnValue({
         nodes: [makeNode({ properties: [{ key: 'GPU', value: 'RTX 4090', icon: null, visible: true }] })],
+        edges: [],
         selectedNodeId: 'n1',
         selectedNodeIds: [],
         setSelectedNode: vi.fn(),
@@ -199,6 +214,7 @@ describe('DetailPanel', () => {
       const updateNode = vi.fn()
       vi.mocked(canvasStore.useCanvasStore).mockReturnValue({
         nodes: [makeNode({ properties: [] })],
+        edges: [],
         selectedNodeId: 'n1',
         selectedNodeIds: [],
         setSelectedNode: vi.fn(),
@@ -225,6 +241,7 @@ describe('DetailPanel', () => {
       const setSelectedNode = vi.fn()
       vi.mocked(canvasStore.useCanvasStore).mockReturnValue({
         nodes: [makeNode({})],
+        edges: [],
         selectedNodeId: 'n1',
         setSelectedNode,
         deleteNode: vi.fn(),
@@ -249,6 +266,7 @@ describe('DetailPanel', () => {
       const snapshotHistory = vi.fn()
       vi.mocked(canvasStore.useCanvasStore).mockReturnValue({
         nodes: [makeNode({ label: 'My Server' })],
+        edges: [],
         selectedNodeId: 'n1',
         setSelectedNode: vi.fn(),
         deleteNode,
@@ -267,6 +285,7 @@ describe('DetailPanel', () => {
       const snapshotHistory = vi.fn()
       vi.mocked(canvasStore.useCanvasStore).mockReturnValue({
         nodes: [makeNode({})],
+        edges: [],
         selectedNodeId: 'n1',
         setSelectedNode: vi.fn(),
         deleteNode,
@@ -295,6 +314,7 @@ describe('DetailPanel', () => {
       const updateNode = vi.fn()
       vi.mocked(canvasStore.useCanvasStore).mockReturnValue({
         nodes: [makeNode({})],
+        edges: [],
         selectedNodeId: 'n1',
         selectedNodeIds: [],
         setSelectedNode: vi.fn(),
@@ -320,6 +340,7 @@ describe('DetailPanel', () => {
       const updateNode = vi.fn()
       vi.mocked(canvasStore.useCanvasStore).mockReturnValue({
         nodes: [makeNode({ ip: '192.168.1.10:8080' })],
+        edges: [],
         selectedNodeId: 'n1',
         selectedNodeIds: [],
         setSelectedNode: vi.fn(),
@@ -346,6 +367,7 @@ describe('DetailPanel', () => {
       const svc = { port: 80, protocol: 'tcp' as const, service_name: 'nginx' }
       vi.mocked(canvasStore.useCanvasStore).mockReturnValue({
         nodes: [makeNode({ services: [svc] })],
+        edges: [],
         selectedNodeId: 'n1',
         setSelectedNode: vi.fn(),
         deleteNode: vi.fn(),
@@ -361,6 +383,7 @@ describe('DetailPanel', () => {
     it('does not crash when data.services is undefined', () => {
       vi.mocked(canvasStore.useCanvasStore).mockReturnValue({
         nodes: [makeNode({ services: undefined as unknown as [] })],
+        edges: [],
         selectedNodeId: 'n1',
         setSelectedNode: vi.fn(),
         deleteNode: vi.fn(),
@@ -392,6 +415,7 @@ describe('DetailPanel', () => {
       const updateNode = vi.fn()
       vi.mocked(canvasStore.useCanvasStore).mockReturnValue({
         nodes: [makeNode({ services: [svc] })],
+        edges: [],
         selectedNodeId: 'n1',
         setSelectedNode: vi.fn(),
         deleteNode: vi.fn(),
@@ -417,6 +441,7 @@ describe('DetailPanel', () => {
       const updateNode = vi.fn()
       vi.mocked(canvasStore.useCanvasStore).mockReturnValue({
         nodes: [makeNode({ services: [svc] })],
+        edges: [],
         selectedNodeId: 'n1',
         setSelectedNode: vi.fn(),
         deleteNode: vi.fn(),
@@ -460,6 +485,49 @@ describe('DetailPanel', () => {
       setupStore({ ip: '192.168.1.10, 192.168.1.11' })
       render(<DetailPanel onEdit={vi.fn()} />)
       expect(screen.getByText(/192\.168\.1\.10, 192\.168\.1\.11/)).toBeDefined()
+    })
+  })
+
+  describe('Hosted service relationships', () => {
+    it('shows service nodes connected to the selected host', () => {
+      const service = makeNode({
+        label: 'Mattermost',
+        type: 'service',
+        status: 'online',
+        properties: [{ key: 'Runtime', value: 'docker-compose', icon: 'Layers', visible: true }],
+      })
+      service.id = 'svc-mattermost'
+      setupStore({ label: 'Docker Host', type: 'vm' }, [service], [makeEdge('n1', 'svc-mattermost')])
+
+      render(<DetailPanel onEdit={vi.fn()} />)
+
+      expect(screen.getByText('Hosted Services (1)')).toBeDefined()
+      expect(screen.getByText('Mattermost')).toBeDefined()
+      expect(screen.getByText('docker-compose')).toBeDefined()
+    })
+
+    it('shows the host for a selected service node', () => {
+      const host = makeNode({ label: 'Docker Host', type: 'vm', status: 'online' })
+      host.id = 'host-docker'
+      const service = makeNode({ label: 'Mattermost', type: 'service', status: 'unknown' })
+      service.id = 'svc-mattermost'
+      vi.mocked(canvasStore.useCanvasStore).mockReturnValue({
+        nodes: [host, service],
+        edges: [makeEdge('host-docker', 'svc-mattermost')],
+        selectedNodeId: 'svc-mattermost',
+        selectedNodeIds: [],
+        setSelectedNode: vi.fn(),
+        deleteNode: vi.fn(),
+        updateNode: vi.fn(),
+        snapshotHistory: vi.fn(),
+        createGroup: vi.fn(),
+        ungroup: vi.fn(),
+      } as unknown as ReturnType<typeof canvasStore.useCanvasStore>)
+
+      render(<DetailPanel onEdit={vi.fn()} />)
+
+      expect(screen.getByText('Hosted On')).toBeDefined()
+      expect(screen.getByText('Docker Host')).toBeDefined()
     })
   })
 })
