@@ -2,6 +2,7 @@
 import asyncio
 import logging
 from datetime import datetime, timezone
+from typing import Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import select
@@ -37,6 +38,12 @@ async def _check_single_node(
             if n:
                 n.status = check_result["status"]
                 n.response_time_ms = check_result["response_time_ms"]
+                if check_result.get("ip"):
+                    n.ip = str(check_result["ip"])
+                if check_result.get("hostname"):
+                    n.hostname = str(check_result["hostname"])
+                if check_result.get("properties"):
+                    n.properties = _merge_node_properties(n.properties, check_result["properties"])
                 if check_result["status"] == "online":
                     n.last_seen = now
                 await db.commit()
@@ -71,6 +78,30 @@ async def _run_status_checks() -> None:
         _check_single_node(node_id, method, target, ip)
         for node_id, method, target, ip in checkable
     ])
+
+
+def _merge_node_properties(
+    existing: list[dict[str, Any]] | None,
+    updates: object,
+) -> list[dict[str, Any]]:
+    """Merge checker-maintained properties without wiping operator metadata."""
+    merged = list(existing or [])
+    if not isinstance(updates, list):
+        return merged
+
+    for update in updates:
+        if not isinstance(update, dict):
+            continue
+        key = str(update.get("key") or "").casefold()
+        if not key:
+            continue
+        for index, current in enumerate(merged):
+            if str(current.get("key") or "").casefold() == key:
+                merged[index] = update
+                break
+        else:
+            merged.append(update)
+    return merged
 
 
 def start_scheduler() -> None:

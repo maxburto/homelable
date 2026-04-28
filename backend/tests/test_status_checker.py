@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.core.config import settings
 from app.services.status_checker import _ping, _tcp_connect, check_node
 
 # --- check_node dispatcher ---
@@ -146,6 +147,103 @@ async def test_check_node_exception_returns_offline():
     with patch("app.services.status_checker._ping", new_callable=AsyncMock, side_effect=RuntimeError("boom")):
         result = await check_node("ping", None, "10.0.0.1")
     assert result["status"] == "offline"
+    assert result["response_time_ms"] is None
+
+
+@pytest.mark.asyncio
+async def test_check_node_proxmox_vm_uses_runtime_status_and_guest_agent(monkeypatch):
+    monkeypatch.setattr(settings, "proxmox_api_profiles", {
+        "homelab": {
+            "base_url": "https://pve.example:8006",
+            "node": "homelab",
+            "token_id": "token-id",
+            "token_secret": "token-secret",
+            "verify_ssl": False,
+        },
+    })
+
+    async def fake_proxmox_get(profile, path):
+        if path == "nodes/homelab/qemu/112/status/current":
+            return {"data": {"status": "running", "name": "database-server-dev"}}
+        if path == "nodes/homelab/qemu/112/agent/ping":
+            return {"data": {"result": {}}}
+        if path == "nodes/homelab/qemu/112/agent/network-get-interfaces":
+            return {"data": {"result": [
+                {"name": "docker0", "ip-addresses": [
+                    {"ip-address-type": "ipv4", "ip-address": "172.17.0.1"},
+                ]},
+                {"name": "enp6s18", "ip-addresses": [
+                    {"ip-address-type": "ipv4", "ip-address": "192.168.20.87"},
+                ]},
+            ]}}
+        if path == "nodes/homelab/qemu/112/agent/get-host-name":
+            return {"data": {"result": {"host-name": "db01"}}}
+        if path == "nodes/homelab/qemu/112/agent/get-osinfo":
+            return {"data": {"result": {"pretty-name": "Ubuntu 24.04 LTS"}}}
+        raise AssertionError(f"unexpected path {path}")
+
+    with patch("app.services.status_checker._proxmox_api_get", side_effect=fake_proxmox_get):
+        result = await check_node("proxmox-vm", "proxmox://homelab/qemu/112", "192.168.20.87")
+
+    assert result["status"] == "online"
+    assert result["ip"] == "192.168.20.87"
+    assert result["hostname"] == "db01"
+    props = {prop["key"]: prop["value"] for prop in result["properties"]}
+    assert props["Runtime State"] == "running"
+    assert props["Guest Agent"] == "online"
+    assert props["Guest OS"] == "Ubuntu 24.04 LTS"
+
+
+@pytest.mark.asyncio
+async def test_check_node_proxmox_lxc_uses_runtime_status(monkeypatch):
+    monkeypatch.setattr(settings, "proxmox_api_profiles", {
+        "homelab": {
+            "base_url": "https://pve.example:8006",
+            "node": "homelab",
+            "token_id": "token-id",
+            "token_secret": "token-secret",
+        },
+    })
+
+    async def fake_proxmox_get(profile, path):
+        assert path == "nodes/homelab/lxc/119/status/current"
+        return {"data": {"status": "running", "name": "prometheus-pve-exporter"}}
+
+    with patch("app.services.status_checker._proxmox_api_get", side_effect=fake_proxmox_get):
+        result = await check_node("proxmox-lxc", "proxmox://homelab/lxc/119", None)
+
+    assert result["status"] == "online"
+    props = {prop["key"]: prop["value"] for prop in result["properties"]}
+    assert props["CTID"] == "119"
+    assert props["Runtime State"] == "running"
+
+
+@pytest.mark.asyncio
+async def test_check_node_proxmox_stopped_guest_is_offline(monkeypatch):
+    monkeypatch.setattr(settings, "proxmox_api_profiles", {
+        "homelab": {
+            "base_url": "https://pve.example:8006",
+            "node": "homelab",
+            "token_id": "token-id",
+            "token_secret": "token-secret",
+        },
+    })
+
+    async def fake_proxmox_get(profile, path):
+        assert path == "nodes/homelab/qemu/114/status/current"
+        return {"data": {"status": "stopped", "name": "ai-ubuntu-server"}}
+
+    with patch("app.services.status_checker._proxmox_api_get", side_effect=fake_proxmox_get):
+        result = await check_node("proxmox-vm", "proxmox://homelab/qemu/114", None)
+
+    assert result["status"] == "offline"
+
+
+@pytest.mark.asyncio
+async def test_check_node_proxmox_missing_profile_is_unknown(monkeypatch):
+    monkeypatch.setattr(settings, "proxmox_api_profiles", {})
+    result = await check_node("proxmox-vm", "proxmox://missing/qemu/112", None)
+    assert result["status"] == "unknown"
     assert result["response_time_ms"] is None
 
 

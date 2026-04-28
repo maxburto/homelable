@@ -107,6 +107,51 @@ async def test_run_status_checks_sets_last_seen_only_when_online(mem_db):
 
 
 @pytest.mark.asyncio
+async def test_run_status_checks_merges_checker_properties_and_guest_fields(mem_db):
+    """Checker-returned guest metadata is merged without wiping operator properties."""
+    async with mem_db() as session:
+        node = _make_node(
+            check_method="proxmox-vm",
+            check_target="proxmox://homelab/qemu/112",
+            ip="192.168.20.10",
+            hostname="old-host",
+            properties=[
+                {"key": "Owner", "value": "Ops", "icon": "Tag", "visible": True},
+                {"key": "Runtime State", "value": "unknown", "icon": "Zap", "visible": True},
+            ],
+        )
+        session.add(node)
+        await session.commit()
+        node_id = node.id
+
+    check_result = {
+        "status": "online",
+        "response_time_ms": 8,
+        "ip": "192.168.20.87",
+        "hostname": "db01",
+        "properties": [
+            {"key": "Runtime State", "value": "running", "icon": "Zap", "visible": True},
+            {"key": "Guest Agent", "value": "online", "icon": "Shield", "visible": True},
+        ],
+    }
+
+    with patch("app.core.scheduler.AsyncSessionLocal", mem_db), \
+         patch("app.core.scheduler.check_node", new_callable=AsyncMock, return_value=check_result), \
+         patch("app.api.routes.status.broadcast_status", new_callable=AsyncMock):
+        await _run_status_checks()
+
+    async with mem_db() as session:
+        updated = await session.get(Node, node_id)
+        assert updated is not None
+        assert updated.ip == "192.168.20.87"
+        assert updated.hostname == "db01"
+        props = {prop["key"]: prop["value"] for prop in updated.properties}
+        assert props["Owner"] == "Ops"
+        assert props["Runtime State"] == "running"
+        assert props["Guest Agent"] == "online"
+
+
+@pytest.mark.asyncio
 async def test_run_status_checks_handles_check_error_gracefully(mem_db):
     """An exception from check_node is logged and does not abort other nodes."""
     async with mem_db() as session:

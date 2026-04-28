@@ -71,6 +71,23 @@ Homelable continuously monitors your nodes and displays their live status (onlin
 | `ssh` | TCP connect to port 22 |
 | `prometheus` | GET `/metrics` |
 | `health` | GET `/health` |
+| `proxmox-vm` | Proxmox API runtime status for a VM target like `proxmox://homelab/qemu/112`; running = online, stopped = offline. If QEMU Guest Agent is available, Homelable also refreshes guest IP/hostname and native properties. |
+| `proxmox-lxc` | Proxmox API runtime status for an LXC target like `proxmox://homelab/lxc/119`; running = online, stopped = offline. |
+
+### Proxmox-backed checks
+
+Set `PROXMOX_API_PROFILES` in the backend environment as a JSON object keyed by profile name. Keep token values in your secret manager and render them into the backend environment during deployment.
+
+```env
+PROXMOX_API_PROFILES='{"homelab":{"base_url":"https://pve.example:8006","node":"homelab","token_id":"api-user@pve!status-token","token_secret":"rendered_by_secret_manager","verify_ssl":false}}'
+```
+
+Then set each VM/LXC node to the matching check method and target:
+
+```text
+proxmox-vm  -> proxmox://homelab/qemu/112
+proxmox-lxc -> proxmox://homelab/lxc/119
+```
 
 ---
 

@@ -1,8 +1,9 @@
 import json
 import logging
 from pathlib import Path
+from typing import Any
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,7 @@ class Settings(BaseSettings):
 
     # Status checker
     status_checker_interval: int = 60
+    proxmox_api_profiles: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
     # MCP service key — set MCP_SERVICE_KEY in .env
     # Used by the MCP server to authenticate against the backend without a user password.

@@ -16,7 +16,7 @@ const NODE_TYPE_GROUPS: { label: string; types: NodeType[] }[] = [
   { label: 'Generic',        types: ['computer', 'generic', 'groupRect'] },
 ]
 
-const CHECK_METHODS: CheckMethod[] = ['none', 'ping', 'http', 'https', 'tcp', 'ssh', 'prometheus', 'health']
+const CHECK_METHODS: CheckMethod[] = ['none', 'ping', 'http', 'https', 'tcp', 'ssh', 'prometheus', 'health', 'proxmox-vm', 'proxmox-lxc']
 
 const DEFAULT_DATA: Partial<NodeData> = {
   type: 'server',
